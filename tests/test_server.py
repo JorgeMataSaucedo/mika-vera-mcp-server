@@ -98,18 +98,29 @@ async def test_vera_trace_summary_clamps_hours():
 
 
 def test_all_tools_registered():
-    """All 5 MCP tools are exposed."""
+    """All 5 MCP tools are exposed at module level."""
     import importlib, server
     importlib.reload(server)
 
-    # FastMCP registers tools · check names appear
-    tool_names = {t.name for t in server.mcp.list_tools()} if hasattr(server.mcp, 'list_tools') else set()
+    # FastMCP 2.x list_tools() is async · check module-level presence instead
     expected = {"vera_ask", "vera_trace_summary", "mika_autoevolution_observe",
                 "mika_autoevolution_pending", "mika_autoevolution_commits"}
-    # Fallback if list_tools API differs
-    if tool_names:
-        assert expected.issubset(tool_names)
-    else:
-        # Verify functions exist at module level
-        for name in expected:
-            assert hasattr(server, name), f"missing tool: {name}"
+    for name in expected:
+        assert hasattr(server, name), f"missing tool: {name}"
+        assert callable(getattr(server, name)), f"tool not callable: {name}"
+
+
+@pytest.mark.asyncio
+async def test_mcp_list_tools_async():
+    """FastMCP list_tools returns all 5 registered tools (async API)."""
+    import importlib, server
+    importlib.reload(server)
+
+    if not hasattr(server.mcp, 'list_tools'):
+        return  # FastMCP API changed; skip gracefully
+
+    tools = await server.mcp.list_tools()
+    names = {t.name for t in tools}
+    expected = {"vera_ask", "vera_trace_summary", "mika_autoevolution_observe",
+                "mika_autoevolution_pending", "mika_autoevolution_commits"}
+    assert expected.issubset(names), f"missing: {expected - names}"
